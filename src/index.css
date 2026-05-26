@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+:root {
+  --theme-bg: #050507;
+  --theme-card: #0c0c0f;
+  --theme-aside: #08080b;
+  --theme-border: #1a1a1e;
+  --theme-accent: #00ffc2;
+  --theme-accent-hover: #00e6af;
+  --theme-dim: #a1a1aa; /* Increased contrast for WCAG AA/AAA compliance in deep dark space */
+  --theme-text: #E0E0E6;
+  --theme-text-white: #ffffff;
+  --theme-glow: rgba(0, 255, 194, 0.15);
+}
+
+.theme-light {
+  --theme-bg: #f8fafc; /* Crisp slate-light neutral */
+  --theme-card: #ffffff;
+  --theme-aside: #f1f5f9; /* Rich sub-panel slate light */
+  --theme-border: #94a3b8; /* Highly visible high-contrast border borders */
+  --theme-accent: #006046; /* Rich, accessible forest teal (Contrast ratio is > 6:1 on light backgrounds) */
+  --theme-accent-hover: #004632;
+  --theme-dim: #334155; /* Slate-700 / Slate-800 for absolute legibility of paragraph/muted copy */
+  --theme-text: #0f172a; /* Slate-900 (High contrast >= 15:1 for ultimate readability) */
+  --theme-text-white: #020617; /* Slate-950 for high contrast headers */
+  --theme-glow: rgba(0, 96, 70, 0.15);
+}
+
+@theme {
+  --color-immersive-bg: var(--theme-bg);
+  --color-immersive-card: var(--theme-card);
+  --color-immersive-aside: var(--theme-aside);
+  --color-immersive-border: var(--theme-border);
+  --color-immersive-accent: var(--theme-accent);
+  --color-immersive-accent-hover: var(--theme-accent-hover);
+  --color-immersive-dim: var(--theme-dim);
+  --color-immersive-text: var(--theme-text);
+  --color-immersive-text-white: var(--theme-text-white);
+  --color-immersive-glow: var(--theme-glow);
+}
