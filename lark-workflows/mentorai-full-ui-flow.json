@@ -1,0 +1,7 @@
+{
+  "id": "wflw_6wzeYZfT6EaBrL43AWWzWboV",
+  "group_id": "wfl_grp_PddYxAyFYTZHwyNeEdUoXM9d",
+  "name": "MentorAI — Full UI Flow (E2E)",
+  "description": "End-to-end browser test of the complete user journey: (1) Open http://localhost:3000, verify the Onboarding screen loads with three domain cards (Business Strategy, Technology Architecture, Career & Leadership). (2) Click 'Business Strategy', verify the goal input field appears and the starter prompts are visible. (3) Type 'How should I price my SaaS product?' in the goal field and click Launch. (4) Verify ChatLayout loads with the chat input and the three tabs (Chat, 3D Concept Map, Advice Card Studio). (5) Submit the query and wait up to 15 seconds for a response — verify a message appears with a confidence badge. (6) Click '3D Concept Map' tab and verify the canvas renders with at least one node. (7) Click 'Advice Card Studio' and verify the card preview renders. (8) Click 'Share to Lark Channel' and verify the button state changes (error state is acceptable if LARK_WEBHOOK_URL is not set).",
+  "mode": "ai_driven"
+}

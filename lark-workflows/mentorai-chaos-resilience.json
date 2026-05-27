@@ -1,0 +1,7 @@
+{
+  "id": "wflw_nRrQGWHbVhDXm7iOqouKbsOv",
+  "group_id": "wfl_grp_PddYxAyFYTZHwyNeEdUoXM9d",
+  "name": "MentorAI — Chaos & Fallback Resilience",
+  "description": "Validates the three-tier failover chain by sending POST /api/mentor/ask with 'forceFailure: true'. Checks that: (1) the response still returns HTTP 200 (no hard crash), (2) 'fallbackUsed' is true, (3) 'modeUsed' is either 'Local-Mistral' or 'Rule-Engine', (4) 'reasoningChain' contains a warning about Crusoe/Nemotron timeout, (5) 'confidence' is below 80. Also tests the reset path by sending the same query without forceFailure immediately after and confirming modeUsed returns to 'Nemotron'.",
+  "mode": "deterministic"
+}

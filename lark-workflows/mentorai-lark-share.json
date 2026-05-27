@@ -1,0 +1,7 @@
+{
+  "id": "wflw_KzdCjPM07g9gTJb5iEkQejux",
+  "group_id": "wfl_grp_PddYxAyFYTZHwyNeEdUoXM9d",
+  "name": "MentorAI — Lark Channel Share",
+  "description": "Tests the /api/lark/share endpoint. Step 1: POST to /api/lark/share with a complete advice card payload (headline, coreFramework, steps array, takeaway, sentiment) — if LARK_WEBHOOK_URL is configured, verify HTTP 200 and response body contains 'success: true'. Step 2: POST to /api/lark/share with missing 'headline' field — verify HTTP 400 with 'Missing required card fields' error. Step 3: POST to /api/lark/share with a valid payload but temporarily unset LARK_WEBHOOK_URL — verify HTTP 503 with 'Lark webhook not configured' error. This workflow covers the happy path, validation errors, and the missing-config guard.",
+  "mode": "deterministic"
+}
