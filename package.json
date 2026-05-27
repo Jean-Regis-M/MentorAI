@@ -8,7 +8,13 @@
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test:lark": "npx @getlark/cli workflows invoke --group-id wfl_grp_PddYxAyFYTZHwyNeEdUoXM9d --wait --verbose",
+    "test:lark:api": "npx @getlark/cli workflows invoke --workflow-ids wflw_16bIHM15IyjhCtOljL0Ibl4U --wait --verbose",
+    "test:lark:chaos": "npx @getlark/cli workflows invoke --workflow-ids wflw_nRrQGWHbVhDXm7iOqouKbsOv --wait --verbose",
+    "test:lark:e2e": "npx @getlark/cli workflows invoke --workflow-ids wflw_6wzeYZfT6EaBrL43AWWzWboV --wait --verbose",
+    "test:lark:share": "npx @getlark/cli workflows invoke --workflow-ids wflw_KzdCjPM07g9gTJb5iEkQejux --wait --verbose",
+    "lark:setup": "pwsh -File ./lark-workflows/setup.ps1"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

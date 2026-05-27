@@ -1,0 +1,7 @@
+{
+  "id": "wflw_16bIHM15IyjhCtOljL0Ibl4U",
+  "group_id": "wfl_grp_PddYxAyFYTZHwyNeEdUoXM9d",
+  "name": "MentorAI — API Health Check",
+  "description": "Tests the /api/mentor/ask endpoint across all three domains (business, tech, career) and verifies that: (1) responses return HTTP 200, (2) the response body includes 'content', 'confidence', 'modeUsed', 'conceptMap', and 'adviceCard', (3) confidence is a number between 50 and 100, (4) conceptMap has at least 4 nodes. Run this after every deploy to confirm the primary Gemini path is healthy.",
+  "mode": "deterministic"
+}

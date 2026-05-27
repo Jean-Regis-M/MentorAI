@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "lark-openapi": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@larksuiteoapi/lark-mcp",
+        "mcp",
+        "-a", "${LARK_APP_ID}",
+        "-s", "${LARK_APP_SECRET}",
+        "--domain", "https://open.larksuite.com",
+        "-t", "im.message:create_as_bot,im.chat:read,drive.file:read,calendar.event:create"
+      ],
+      "env": {
+        "LARK_APP_ID": "${LARK_APP_ID}",
+        "LARK_APP_SECRET": "${LARK_APP_SECRET}"
+      }
+    },
+    "getlark": {
+      "type": "http",
+      "url": "https://api.getlark.ai/mcp?api_key=${GETLARK_API_KEY}"
+    }
+  }
+}
