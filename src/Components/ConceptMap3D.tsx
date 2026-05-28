@@ -13,21 +13,31 @@ export default function ConceptMap3D({ nodes: initialNodes, links, topic, theme 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // States
-  const [nodes, setNodes] = useState<ConceptNode[]>([]);
-  const [selectedNode, setSelectedNode] = useState<ConceptNode | null>(null);
-  const [rotation, setRotation] = useState({ x: 0.15, y: -0.2 }); // In radians
-  const [zoom, setZoom] = useState(1.1);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  // High performance Canvas reference tracking to completely bypass React state-update triggers
+  const nodesRef = useRef<ConceptNode[]>([]);
+  const linksRef = useRef<ConceptLink[]>([]);
+  const selectedNodeRef = useRef<ConceptNode | null>(null);
+  const rotationRef = useRef({ x: 0.15, y: -0.2 });
+  const zoomRef = useRef(1.1);
+  const isDraggingRef = useRef(false);
+  const dragStartRef = useRef({ x: 0, y: 0 });
 
-  // Load and adapt nodes
+  // Right Side Detail Panel display state
+  const [selectedNode, setSelectedNode] = useState<ConceptNode | null>(null);
+
+  // Sync initial configuration states with canvas render trackers
   useEffect(() => {
     if (initialNodes && initialNodes.length > 0) {
-      setNodes(initialNodes.map(n => ({ ...n })));
-      setSelectedNode(initialNodes[0]);
+      const adapted = initialNodes.map(n => ({ ...n }));
+      nodesRef.current = adapted;
+      setSelectedNode(adapted[0]);
+      selectedNodeRef.current = adapted[0];
     }
   }, [initialNodes]);
+
+  useEffect(() => {
+    linksRef.current = links || [];
+  }, [links]);
 
   // Rotates 3D coordinates based on angles
   const rotatePointX = (y: number, z: number, angle: number) => {
@@ -66,12 +76,19 @@ export default function ConceptMap3D({ nodes: initialNodes, links, topic, theme 
       const centerX = width / 2;
       const centerY = height / 2;
 
-      // Project every 3D node to depth-sorted 2D
-      const projectedNodes = nodes.map(node => {
+      // Project every 3D node to depth-sorted 2D using ref values
+      const currentNodes = nodesRef.current;
+      const currentLinks = linksRef.current;
+      const currentRotation = rotationRef.current;
+      const currentZoom = zoomRef.current;
+      const currentSelectedNode = selectedNodeRef.current;
+      const currentIsDragging = isDraggingRef.current;
+
+      const projectedNodes = currentNodes.map(node => {
         // Step 1: Rotate around Y axis (horizontal)
-        const rotY = rotatePointY(node.x, node.z, rotation.y);
+        const rotY = rotatePointY(node.x, node.z, currentRotation.y);
         // Step 2: Rotate around X axis (vertical)
-        const rotX = rotatePointX(node.y, rotY.rotatedZ, rotation.x);
+        const rotX = rotatePointX(node.y, rotY.rotatedZ, currentRotation.x);
 
         // Perspective factor
         const depth = 400; // Camera distance
@@ -79,20 +96,20 @@ export default function ConceptMap3D({ nodes: initialNodes, links, topic, theme 
         
         return {
           ...node,
-          rx: centerX + rotY.rotatedX * zoom * perspective,
-          ry: centerY + rotX.rotatedY * zoom * perspective,
-          pz: rotX.rotatedZ, // Depth value: negative means closer, positive means further
-          pSize: node.size * perspective * zoom,
+          rx: centerX + rotY.rotatedX * currentZoom * perspective,
+          ry: centerY + rotX.rotatedY * currentZoom * perspective,
+          pz: rotX.rotatedZ,
+          pSize: node.size * perspective * currentZoom,
           opacity: Math.max(0.2, Math.min(1.0, (depth - rotX.rotatedZ) / (depth * 0.8)))
         };
       });
 
-      // Depth sort (draw back nodes first, then links, then front nodes to avoid overlap issues)
+      // Depth sort
       const sortedNodes = [...projectedNodes].sort((a, b) => b.pz - a.pz);
 
       // Draw Connection Links
       ctx.lineWidth = 1;
-      links.forEach(link => {
+      currentLinks.forEach(link => {
         const sourceNode = projectedNodes.find(n => n.id === link.source);
         const targetNode = projectedNodes.find(n => n.id === link.target);
 
@@ -100,7 +117,6 @@ export default function ConceptMap3D({ nodes: initialNodes, links, topic, theme 
           const avgPz = (sourceNode.pz + targetNode.pz) / 2;
           const alpha = Math.max(0.1, Math.min(0.6, (400 - avgPz) / 450));
           
-          // Render links with gradient or soft color
           ctx.beginPath();
           ctx.moveTo(sourceNode.rx!, sourceNode.ry!);
           ctx.lineTo(targetNode.rx!, targetNode.ry!);
@@ -113,7 +129,7 @@ export default function ConceptMap3D({ nodes: initialNodes, links, topic, theme 
 
       // Draw Nodes
       sortedNodes.forEach(node => {
-        const isSelected = selectedNode?.id === node.id;
+        const isSelected = currentSelectedNode?.id === node.id;
         const radius = node.pSize!;
 
         // Node Glow Effect
@@ -124,22 +140,18 @@ export default function ConceptMap3D({ nodes: initialNodes, links, topic, theme 
           ctx.shadowBlur = 0;
         }
 
-        // Generate circular gradient for futuristic orb representation
         const gradient = ctx.createRadialGradient(
           node.rx!, node.ry!, radius * 0.2,
           node.rx!, node.ry!, radius
         );
 
         if (node.group === 0) {
-          // Central Focus node - bright neon cyber orb
           gradient.addColorStop(0, '#00FFC2');
           gradient.addColorStop(1, '#008F6B');
         } else if (node.group === 1) {
-          // Framework principles - high-end deep purple-indigo orb
           gradient.addColorStop(0, '#8183FF');
           gradient.addColorStop(1, '#2D1E70');
         } else {
-          // Tactical action steps - gold orange warning orb
           gradient.addColorStop(0, '#FFAD00');
           gradient.addColorStop(1, '#8A4F00');
         }
@@ -149,13 +161,11 @@ export default function ConceptMap3D({ nodes: initialNodes, links, topic, theme 
         ctx.fillStyle = gradient;
         ctx.fill();
 
-        // Node outline rings for selection or hierarchy
         if (isSelected) {
           ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
           ctx.lineWidth = 2;
           ctx.stroke();
           
-          // External pulsing indicator
           ctx.beginPath();
           ctx.arc(node.rx!, node.ry!, radius + 5, 0, Math.PI * 2);
           ctx.strokeStyle = 'rgba(0, 255, 194, 0.3)';
@@ -167,7 +177,6 @@ export default function ConceptMap3D({ nodes: initialNodes, links, topic, theme 
           ctx.stroke();
         }
 
-        // Draw tidy labels paired underneath or inside larger nodes
         if (radius > 8) {
           ctx.shadowBlur = 0;
           ctx.fillStyle = isSelected 
@@ -179,12 +188,12 @@ export default function ConceptMap3D({ nodes: initialNodes, links, topic, theme 
         }
       });
 
-      // Ambient rotate slowly when mouse is not active to look automated
-      if (!isDragging) {
-        setRotation(prev => ({
-          x: prev.x,
-          y: prev.y + 0.0012
-        }));
+      // Ambient rotate slowly when mouse is not active
+      if (!currentIsDragging) {
+        rotationRef.current = {
+          x: currentRotation.x,
+          y: currentRotation.y + 0.0012
+        };
       }
 
       animationFrameId = requestAnimationFrame(render);
@@ -195,7 +204,7 @@ export default function ConceptMap3D({ nodes: initialNodes, links, topic, theme 
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [nodes, rotation, zoom, selectedNode, isDragging, links]);
+  }, [theme]);
 
   // Handle Resize triggers safely internally
   useEffect(() => {
@@ -218,25 +227,25 @@ export default function ConceptMap3D({ nodes: initialNodes, links, topic, theme 
 
   // Handle Drag interactions for 3D rotation
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    setIsDragging(true);
-    setDragStart({ x: e.clientX, y: e.clientY });
+    isDraggingRef.current = true;
+    dragStartRef.current = { x: e.clientX, y: e.clientY };
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDragging) return;
-    const deltaX = e.clientX - dragStart.x;
-    const deltaY = e.clientY - dragStart.y;
+    if (!isDraggingRef.current) return;
+    const deltaX = e.clientX - dragStartRef.current.x;
+    const deltaY = e.clientY - dragStartRef.current.y;
 
-    setRotation(prev => ({
-      x: prev.x + deltaY * 0.009,
-      y: prev.y + deltaX * 0.009
-    }));
+    rotationRef.current = {
+      x: rotationRef.current.x + deltaY * 0.009,
+      y: rotationRef.current.y + deltaX * 0.009
+    };
 
-    setDragStart({ x: e.clientX, y: e.clientY });
+    dragStartRef.current = { x: e.clientX, y: e.clientY };
   };
 
   const handleMouseUpOrLeave = () => {
-    setIsDragging(false);
+    isDraggingRef.current = false;
   };
 
   // Node Clicking Interaction (Raycast matching)
@@ -256,14 +265,14 @@ export default function ConceptMap3D({ nodes: initialNodes, links, topic, theme 
     let clickedNode: ConceptNode | null = null;
     let minDistance = 22; // Maximum tap radius tolerance
 
-    nodes.forEach(node => {
-      const rotY = rotatePointY(node.x, node.z, rotation.y);
-      const rotX = rotatePointX(node.y, rotY.rotatedZ, rotation.x);
+    nodesRef.current.forEach(node => {
+      const rotY = rotatePointY(node.x, node.z, rotationRef.current.y);
+      const rotX = rotatePointX(node.y, rotY.rotatedZ, rotationRef.current.x);
       const depth = 400;
       const perspective = depth / (depth + rotX.rotatedZ);
       
-      const rx = centerX + rotY.rotatedX * zoom * perspective;
-      const ry = centerY + rotX.rotatedY * zoom * perspective;
+      const rx = centerX + rotY.rotatedX * zoomRef.current * perspective;
+      const ry = centerY + rotX.rotatedY * zoomRef.current * perspective;
 
       const dist = Math.hypot(mouseX - rx, mouseY - ry);
       if (dist < minDistance) {
@@ -274,16 +283,21 @@ export default function ConceptMap3D({ nodes: initialNodes, links, topic, theme 
 
     if (clickedNode) {
       setSelectedNode(clickedNode);
+      selectedNodeRef.current = clickedNode;
     }
   };
 
   const handleRecenter = () => {
-    setRotation({ x: 0.15, y: -0.2 });
-    setZoom(1.1);
+    rotationRef.current = { x: 0.15, y: -0.2 };
+    zoomRef.current = 1.1;
   };
 
-  const handleZoomIn = () => setZoom(z => Math.min(2.5, z + 0.15));
-  const handleZoomOut = () => setZoom(z => Math.max(0.5, z - 0.15));
+  const handleZoomIn = () => {
+    zoomRef.current = Math.min(2.5, zoomRef.current + 0.15);
+  };
+  const handleZoomOut = () => {
+    zoomRef.current = Math.max(0.5, zoomRef.current - 0.15);
+  };
 
   return (
     <div className="bg-[#0C0C0F] border border-[#1A1A1E] rounded-2xl flex flex-col md:flex-row relative h-[440px] overflow-hidden">
