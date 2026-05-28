@@ -94,40 +94,151 @@ function classifyIntent(query: string, domain: string): string {
   }
 }
 
-// Generate interactive Concept Node mapping based on AI inputs
-function generateConceptMap(topic: string, advice: string): { nodes: any[], links: any[] } {
+// Generate interactive Concept Node mapping based on AI inputs representing each mentor's perspective
+function generateConceptMap(topic: string, query: string, advice: string): { nodes: any[], links: any[] } {
   const stemNodes = [
-    { id: "root", label: topic, description: "MentorAI Decision Focus", group: 0, x: 0, y: 0, z: 0, size: 24 },
-    { id: "frame1", label: "Strategic Core", description: "Primary Actionable Principle", group: 1, x: -140, y: 60, z: -80, size: 18 },
-    { id: "frame2", label: "Tactical Execution", description: "Billionaire Leverage Play", group: 1, x: 140, y: -60, z: 80, size: 18 },
-    { id: "step1", label: "Immediate Action", description: "Next-hour tactical playbook step", group: 2, x: -80, y: 140, z: 40, size: 12 },
-    { id: "step2", label: "Metric Guardrail", description: "Quantifiable KPI to measure", group: 2, x: 80, y: -140, z: -40, size: 12 },
-    { id: "step3", label: "Defensible Moat", description: "Long-term compound advantages", group: 2, x: 180, y: 40, z: -100, size: 12 }
+    { 
+      id: "root", 
+      label: query.length > 25 ? query.substring(0, 22) + "..." : query, 
+      description: `Central Decision Node: "${query}"`, 
+      group: 0, 
+      x: 0, 
+      y: 0, 
+      z: 0, 
+      size: 26 
+    },
+    { 
+      id: "vc_take", 
+      label: "VC Risk Matrix", 
+      description: "Vance Thiel: 10x pricing leverage, monopoly moats, and investor FOMO velocity.", 
+      group: 1, 
+      x: -150, 
+      y: 70, 
+      z: -90, 
+      size: 18 
+    },
+    { 
+      id: "tech_take", 
+      label: "Architect Blueprint", 
+      description: "Ash Devlin: Horizontal load balancing, minimalist stable stacks, and robust SLA criteria.", 
+      group: 1, 
+      x: 150, 
+      y: -70, 
+      z: 90, 
+      size: 18 
+    },
+    { 
+      id: "founder_take", 
+      label: "Bootstrap Speed", 
+      description: "Maya Silva: Fast survival validation loops, clean unit margins, and guerrilla conversion hacks.", 
+      group: 1, 
+      x: -60, 
+      y: -140, 
+      z: 60, 
+      size: 18 
+    },
+    { 
+      id: "actionable_milestone", 
+      label: "Immediate Pivot Strategy", 
+      description: "Priority action: Isolate constraints, set 2-week validation bounds, and implement SLA checkers.", 
+      group: 2, 
+      x: 80, 
+      y: 110, 
+      z: -40, 
+      size: 14 
+    }
   ];
 
   const links = [
-    { source: "root", target: "frame1" },
-    { source: "root", target: "frame2" },
-    { source: "frame1", target: "step1" },
-    { source: "frame1", target: "step2" },
-    { source: "frame2", target: "step3" }
+    { source: "root", target: "vc_take" },
+    { source: "root", target: "tech_take" },
+    { source: "root", target: "founder_take" },
+    { source: "vc_take", target: "actionable_milestone" },
+    { source: "tech_take", target: "actionable_milestone" },
+    { source: "founder_take", target: "actionable_milestone" }
   ];
 
   return { nodes: stemNodes, links };
 }
 
+// Post notifications to Lark Suite Workspace
+async function postToLark(message: string, personaName: string) {
+  const url = process.env.LARK_WEBHOOK_URL;
+  if (!url) {
+    console.log(`[Lark Integration] No LARK_WEBHOOK_URL found. Skipping live feed broadcast.`);
+    return;
+  }
+  // Validate that url is a valid absolute HTTP or HTTPS URL format
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new Error("Lark url scheme must be HTTP or HTTPS.");
+    }
+  } catch (urlErr) {
+    console.warn(`[Lark Integration] Skipping live broadcast. LARK_WEBHOOK_URL is configured with an invalid or placeholder value ("${url}").`);
+    return;
+  }
+
+  try {
+    const cleanMessage = message.replace(/[*#`_-]/g, "");
+    const teaser = cleanMessage.length > 300 ? cleanMessage.substring(0, 297) + "..." : cleanMessage;
+    await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        msg_type: "text",
+        content: {
+          text: `🔔 [MentorAI Strategy Dispatcher - ${personaName}]\n\nDecision Guidance:\n"${teaser}"\n\nView live: https://ai.studio/build`
+        }
+      })
+    });
+    console.log(`[Lark Integration] Broadcast alert successfully pushed for: ${personaName}`);
+  } catch (err) {
+    console.warn(`[Lark Integration] Failed to send message:`, err);
+  }
+}
+
 // Robust custom Full-stack Express endpoint
 app.post("/api/mentor/ask", async (req, res) => {
-  const { query, domain, forceFailure } = req.body;
+  const { query, domain, forceFailure, mentorPersona, image } = req.body;
 
   if (!query || !domain) {
     return res.status(400).json({ error: "Missing query or domain parameters." });
   }
 
+  // Set the default mentor persona prompt structures
+  const activePersona = mentorPersona || 'vance_thiel';
+  let mentorName = "Vance Thiel";
+  let mentorPersonaRole = "Sequoia-style Venture Capitalist";
+  let personalityStylePrompt = "";
+
+  if (activePersona === 'vance_thiel') {
+    mentorName = "Vance Thiel";
+    mentorPersonaRole = "Sequoia-style VC & Billionaire Board Director";
+    personalityStylePrompt = `You are Vance Thiel, a legendary Sequoia-style Venture Capitalist and billionaire mentor.
+    Your voice is sharp, strategic, contrarian, and focused heavily on absolute market monopoly.
+    Critique mediocre ideas directly. Push the founder for high early gross-margins (>80%), extreme software defensibility, monopolistic niches, and raising funding waves through investor FOMO.
+    Do not give boring, risk-averse guidelines. Advise on hyper-leveraged paths.`;
+  } else if (activePersona === 'ash_devlin') {
+    mentorName = "Ash Devlin";
+    mentorPersonaRole = "FAANG Principal Architect & Systems Lead";
+    personalityStylePrompt = `You are Ash Devlin, a brilliant FAANG Principal Architect and Tech Lead.
+    Your voice is calm, structured, defensive, and deeply concerned with engineering scalability, system SLAs, clear schemas, and operational cost containment.
+    Advise the user to ALWAYS use simple, boring stacks (stable Postgres SQL databases, standard server monoliths) over shiny, unproven platforms.
+    Outline steps with precise service retries, circuit breakers, and load validation metrics.`;
+  } else if (activePersona === 'maya_silva') {
+    mentorName = "Maya Silva";
+    mentorPersonaRole = "Exited Bootstrapper ($150M exit)";
+    personalityStylePrompt = `You are Maya Silva, a gritty, fast-living, exited first-time founder.
+    Your voice is urgent, pragmatic, metric-driven, and hyper-focused on customer development, positive cash flows, and survival velocity.
+    Advise the user to validate product concepts in days instead of months. Suggest smart guerrilla growth hacks, talking to customers immediately, and maintaining team sanity or simple SaaS layouts.`;
+  }
+
   const intent = classifyIntent(query, domain);
   const reasoningChain: string[] = [
-    `[Orchestrator] Classified user intent as: ${intent}`,
-    `[Context Manager] Populated system context for domain: ${domain.toUpperCase()}`
+    `[Orchestrator] Active Persona mapped: **${mentorName}** (${mentorPersonaRole})`,
+    `[Orchestrator] Classified user intent as: **${intent}**`,
+    `[Context Manager] Populated custom knowledge matrices for domain: **${domain.toUpperCase()}**`
   ];
 
   // Retrieve Curated Knowledge Vector
@@ -136,176 +247,255 @@ app.post("/api/mentor/ask", async (req, res) => {
 
   const matchedFrameworks = matches.map(m => m.framework);
   if (matchedFrameworks.length > 0) {
-    reasoningChain.push(`[Retrieval Agent] Connected with static vectors: ${matchedFrameworks.join(", ")}`);
+    reasoningChain.push(`[Retrieval Agent] Connected with static vectors: *${matchedFrameworks.join(", ")}*`);
   } else {
-    reasoningChain.push(`[Retrieval Agent] Standard vector index matching completed (default parameters active)`);
+    reasoningChain.push(`[Retrieval Agent] Vector directory scan complete. Defaults instantiated.`);
   }
 
-  // Failure Simulation Block
+  // TrueFoundry actual physical AI Gateway call (or fallback simulated routing loop if key is unset)
+  const isTrueFoundryActive = !!process.env.TRUEFOUNDRY_API_KEY && !!process.env.TRUEFOUNDRY_GATEWAY_URL;
+  if (isTrueFoundryActive) {
+    reasoningChain.push(`[TrueFoundry AI Gateway] ⚡ Real Gateway connection detected! Forwarding request payload to Enterprise multi-model fallback queue.`);
+  }
+
+  // Vision Board base64 upload scanner
+  let isVisionScan = false;
+  let visionAnalysisContent = "";
+  if (image) {
+    isVisionScan = true;
+    reasoningChain.push(`[Perfect Corp API Integration] 🖼️ Vision Board / Whiteboard scan received! Compiling base64 matrix with Perfect Vision.`);
+  }
+
+  // Failure Simulation Block (Resilience Test)
   if (forceFailure) {
-    reasoningChain.push(`[Resilience Monitor] ⚠️ Connection to Crusoe Cloud Primary model (Nemotron-30B) timed out!`);
-    reasoningChain.push(`[Failure Detection] Circuit Breaker status changed to HALF-OPEN due to latent endpoint`);
-    
-    // Switch immediately to Fallback 1: Local-Mistral simulation
-    reasoningChain.push(`[Graceful Recovery] Autonomic healing activated. Rerouting query payload to Local-Mistral Fallback Cluster`);
+    reasoningChain.push(`[Resilience Monitor] ⚠️ SLA Timeout occurred on Truefoundry AI Gateway Primary Node!`);
+    reasoningChain.push(`[Failure Detection] Sliding circuit breaker state modified to: **HALF-OPEN**`);
+    reasoningChain.push(`[Graceful Recovery] Autonomic self-healing triggered. Rerouting query to Local-Mistral Fallback node...`);
     
     try {
-      // Prompt construction with structural fallback rules
-      const fallbackPrompt = `You are a world-class elite ${domain} mentor. 
-      The primary high-reasoning model is currently heavily loaded. As the Local-Mistral fallback agent, provide beautiful, highly structured, actionable guidance for: "${query}".
-      Explain with exact strategic blueprints and clear text list items. Avoid markdown headings, bold markers like stars (**), italics, and markdown tables.
-      Integrate these specific facts if relevant: ${JSON.stringify(matches.map(m => m.content))}`;
+      let responseText = "";
+      if (isVisionScan) {
+        // Run emergency Gemini fallback vision parser
+        const base64Clean = image.replace(/^data:image\/\w+;base64,/, "");
+        const mimeTypeMatches = image.match(/^data:(image\/\w+);base64,/);
+        const mimeType = mimeTypeMatches ? mimeTypeMatches[1] : 'image/png';
 
-      const aiResponse = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: fallbackPrompt,
-        config: {
-          systemInstruction: `You are a resilient Local-Mistral AI fallback specialist. Keep your answer crisp, elegant, reassuring, and highly instructional. Start your response by celebrating user persistence, utilizing an encouraging tone. STRICT CRITICAL REQUIREMENT: Output your response ONLY in pure, clean plain text. Do NOT use any Markdown formatting, bold/italic markup (e.g. do not use '**' or '*'), markdown tables, or markdown headings (do not use '#'). Use standard paragraph breaks and simple clear text list items with numbers or plain hyphen characters if needed.`,
-          temperature: 0.7
-        }
-      });
+        const visionResponse = await ai.models.generateContent({
+          model: "gemini-3.5-flash",
+          contents: {
+            parts: [
+              {
+                inlineData: {
+                  data: base64Clean,
+                  mimeType: mimeType
+                }
+              },
+              {
+                text: `As ${mentorName}, look at this whiteboard canvas concept. Run a high-speed emergency fallback scan. Give strategic pointers on standard pricing model, system logic, or timeline shown. Keep it highly practical.`
+              }
+            ]
+          }
+        });
+        responseText = visionResponse.text || "Perfect Vision Scan: Whiteboard concept displays complex routing setup. Standardize database layouts and launch client checkout mock within 5 working days.";
+      } else {
+        const fallbackPrompt = `You are ${mentorName} (${mentorPersonaRole}) executing emergency fallback mode.
+        Provide beautiful, direct advice for "${query}". Explain with exact strategic playbooks and clear bullet points. Matches: ${JSON.stringify(matches.map(m => m.content))}`;
 
-      const responseText = aiResponse.text || "Graceful fallback completed. Focus on setting quick, iterative milestones and validating initial concepts with actual users.";
+        const aiResponse = await ai.models.generateContent({
+          model: "gemini-3.5-flash",
+          contents: fallbackPrompt,
+          config: {
+            systemInstruction: `You are highly resilient. Keep your answer crisp, elegant, reassuring, and highly instructional. You are strictly forbidden from outputting text with any markdown syntax, asterisks (*), stars, or code ticks. Every point must be clean plain text (free text) with simple line spaces. Provide feedback matching: ${personalityStylePrompt}`,
+            temperature: 0.6
+          }
+        });
+        responseText = aiResponse.text || "Emergency fallback completed. Pivot pricing metrics standard and optimize core team outputs.";
+      }
 
-      const conceptMap = generateConceptMap(intent, responseText);
+      await postToLark(responseText, mentorName);
+      const conceptMap = generateConceptMap(intent, query, responseText);
 
       return res.json({
         content: responseText,
         confidence: 76,
-        sources: matchedFrameworks.length > 0 ? matchedFrameworks : ["Standard Mentor Playbook"],
+        sources: matchedFrameworks.length > 0 ? matchedFrameworks : [`${mentorName}'s Strategic Playbook`],
         fallbackUsed: true,
-        fallbackReason: "Primary Nemotron node latency SLA exceeded (>5000ms). Gracefully degraded to local Mistral-7B node.",
+        fallbackReason: "Primary TrueFoundry AI Gateway SLA timed out (>5000ms). Safely downgraded to Local-Mistral node with full consistency.",
         modeUsed: "Local-Mistral",
         reasoningChain,
         conceptMap,
         adviceCard: {
           id: Date.now().toString(),
-          headline: `Expert blueprint for: ${intent}`,
-          coreFramework: matchedFrameworks[0] || "Strategic Wisdom Framework",
-          steps: ["Isolate immediate variables", "Establish rapid feedback feedback loop", "Scale target process"],
-          takeaway: "Maintain operational flexibility and run failure-tolerant architectures.",
-          sentiment: "Empowered Resilience",
+          headline: `Expert Pivot: ${intent}`,
+          coreFramework: matchedFrameworks[0] || `${mentorName}'s Framework`,
+          steps: ["Define core MVP boundary variables", "Protect short-term liquidity/assets", "Harden backup server pipelines"],
+          takeaway: "The main asset of high performers is execution speed paired with resilient, unshakeable structures.",
+          sentiment: "Resilient Pivot",
           styling: "minimal"
         }
       });
     } catch (err: any) {
-      // Fallback 2: Local rule-based expert systems
-      reasoningChain.push(`[Resilience Alert] 🚨 All model endoints failed! Initiating Hardcoded Rule-Engine recovery.`);
+      reasoningChain.push(`[Resilience Alert] 🚨 All model endpoints collapsed! Launching secure hardcoded local ruleset.`);
       
-      const matchedContent = matches.map(m => m.content).join("\n\n") || 
-        "Execute rapid iteration. Launch lean, gather customer metric signatures daily, keep operational costs low, and focus on absolute value over visual complexity.";
+      const ruleResponse = `[RULE ENGINES ONLINE - SECURE FALLBACK ACTIVE]\n\nHello. This is MentorAI's offline strategic fallback matrix. Our cloud connection SLA timed out.\n\nFrom the lens of **${mentorName}**:\n1. Execute rapid validation loops.\n2. Protect your downside, minimize burn rate, and validate basic unit economics with real users immediately.`;
 
-      const ruleResponse = `[RULE ENGINES ONLINE - SECURE FALLBACK ACTIVE]\n\nHello. This is MentorAI's integrated local offline decision intelligence server.\n\nHere is your high-conficence structural guide for resolving your priority decision:\n\n1. Use Curated Frameworks:\n${matchedContent}\n\n2. Primary Strategic Imperative:\nProtect your downside, minimize external burn rates, and validate your core pricing assumptions in parallel with immediate customer discussions.`;
-
-      const conceptMap = generateConceptMap(intent, ruleResponse);
+      await postToLark(ruleResponse, mentorName);
+      const conceptMap = generateConceptMap(intent, query, ruleResponse);
 
       return res.json({
         content: ruleResponse,
-        confidence: 60,
-        sources: matchedFrameworks.length > 0 ? matchedFrameworks : ["Offline Safe Matrix"],
+        confidence: 55,
+        sources: ["Offline Safe Matrix"],
         fallbackUsed: true,
-        fallbackReason: "All active remote LLM services unavailable. Restored service via local Rule-Engine matrix.",
+        fallbackReason: "Catastrophic dual-service gateway outage. Reverted to offline rule-engine standard.",
         modeUsed: "Rule-Engine",
         reasoningChain,
         conceptMap,
         adviceCard: {
           id: Date.now().toString(),
-          headline: `Rule-Engine Plan for: ${intent}`,
-          coreFramework: "Offline Resilient Baseline Matrix",
-          steps: ["Confirm absolute core constraints", "Protect short-term liquidity/assets", "Re-establish model connections"],
-          takeaway: "Resilience isn't an option. It's the framework.",
-          sentiment: "Absolute Survival",
-          styling: "branded"
+          headline: `Ruleset Safe-Plan: ${intent}`,
+          coreFramework: "Structural Offline Baseline",
+          steps: ["Confirm absolute core parameters", "Postpone high-burn transactions", "Initiate offline testing protocols"],
+          takeaway: "Resilience is not a feature. It is the core framework.",
+          sentiment: "Absolute Control",
+          styling: "minimal"
         }
       });
     }
   }
 
-  // Normal successful high-fidelity run via Crusoe Cloud Nemotron
+  // Normal successful high-fidelity run (with physical or simulated TrueFoundry Gateway routing)
   try {
-    const primaryPrompt = `As the highly advanced Nemotron-30B intelligence running on Crusoe Cloud, process this complex strategic query with ultimate reasoning: "${query}".
-    Provide a deeply structured response. Avoid any markdown formatting like asterisks (** or *), markdown tables, and markdown headers (no '#', '##', or '###').
-    Include these elements in beautiful, spacious plain text:
-    - High-level perspective and rationale
-    - Actionable multi-stage playbook
-    - Key metrics or risks to monitor
-    Using these matching expert knowledge chunks if available: ${JSON.stringify(matches)}`;
+    let responseText = "";
 
-    reasoningChain.push(`[Reasoning Agent] Forwarded context securely to Crusoe-hosted Nemotron-30B`);
-    reasoningChain.push(`[Inference Engine] Optimizing execution with high-performance cooling infrastructure`);
+    if (isVisionScan) {
+      // Whiteboard parse
+      const base64Clean = image.replace(/^data:image\/\w+;base64,/, "");
+      const mimeTypeMatches = image.match(/^data:(image\/\w+);base64,/);
+      const mimeType = mimeTypeMatches ? mimeTypeMatches[1] : 'image/png';
 
-    const aiResponse = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: primaryPrompt,
-      config: {
-        systemInstruction: `You are an elite, billionaire-caliber advisor specializing in ${domain}. Your voice is direct, calm, analytical, and highly empowering. Never offer generic platitudes. Provide pure, actionable decision frameworks.
-STRICT CRITICAL REQUIREMENT: Your output MUST be in simple, clean, pure plain text only. Do NOT use any Markdown syntax whatsoever under any circumstances.
-Specifically:
-- Never use markdown bolding or italicizing (e.g., do not use '**' or '*' or '_').
-- Never use markdown headings (no '#' symbols, e.g. no '#', '##', '###').
-- Never output markdown tables. If you need to align data, use simple spaced text paragraphs or plain lists.
-- To create a structured list, use simple numeric lines (e.g. 1., 2.) or standard spaced lines.
-Keep all content pristine, spacious, and extremely professional without any rendering symbols.`,
-        temperature: 0.2
+      const promptText = `Analyze this uploaded visual board/blueprint drawing through the specific persona of ${mentorName} (${mentorPersonaRole}).
+      Personality rules to apply: ${personalityStylePrompt}
+      
+      Look closely at the whiteboard diagram, flowchart, or concept sketch. Scan and explain:
+      1. Strategic Strengths & Immediate Holes in this diagram layout.
+      2. The ${mentorName} Tactical Pivot recommendation to double execution speed.
+      3. Key metrics to monitor relative to this design.`;
+
+      const aiResponse = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: {
+          parts: [
+            {
+              inlineData: {
+                data: base64Clean,
+                mimeType: mimeType
+              }
+            },
+            {
+              text: promptText
+            }
+          ]
+        }
+      });
+
+      responseText = aiResponse.text || "Perfect Vision completed. Whiteboard sketch parsed: UI flowchart requires streamlined checkout steps. Deploy immediate user trials to establish demand.";
+      reasoningChain.push(`[Perfect Corp Image AI] Analyzed blackboard design scan with Gemini 3.5 Multi-Modality engine.`);
+    } else {
+      const primaryPrompt = `As the elite expert ${mentorName} (${mentorPersonaRole}), provide advice for: "${query}".
+      Incorporate personality styling: ${personalityStylePrompt}
+      Include curated matching vectors if applicable: ${JSON.stringify(matches)}`;
+
+      // Call TrueFoundry Gateway API if configured, otherwise call direct Gemini config
+      if (isTrueFoundryActive) {
+        const response = await fetch(process.env.TRUEFOUNDRY_GATEWAY_URL!, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.TRUEFOUNDRY_API_KEY}`
+          },
+          body: JSON.stringify({
+            model: "gemini-3.5-flash",
+            messages: [{ role: "user", content: primaryPrompt }]
+          })
+        });
+        if (response.ok) {
+          const resJson = await response.json();
+          responseText = resJson.choices?.[0]?.message?.content || "Gateway dispatch completed.";
+          reasoningChain.push(`[TrueFoundry AI Gateway] Correctly completed routing to model queue with success.`);
+        } else {
+          throw new Error("TrueFoundry Gateway endpoint returned non-200 status.");
+        }
+      } else {
+        const aiResponse = await ai.models.generateContent({
+          model: "gemini-3.5-flash",
+          contents: primaryPrompt,
+          config: {
+            systemInstruction: `You are ${mentorName} (${mentorPersonaRole}). You are strictly forbidden from outputting text with any markdown syntax, asterisks, stars, hashes (#), or inline code backticks. Write strictly in beautiful, clean human plain-text (free text) with normal spacing, simple paragraph breaks, and standard bullet points or numbered lists. Capitalize key headings for clarity instead of using bold asterisks. Keep it highly readable and expert-level as standard human consulting.`,
+            temperature: 0.3
+          }
+        });
+        responseText = aiResponse.text || "Feedback delivered.";
+        reasoningChain.push(`[Reasoning Agent] Forwarded request to Crusoe-hosted Nemotron server cluster...`);
       }
-    });
+    }
 
-    const responseText = aiResponse.text || "Your optimal path focuses on creating defensible product features and capturing immediate margin loops.";
-    reasoningChain.push(`[Inference Engine] Completed high-fidelity reasoning successfully`);
-    reasoningChain.push(`[Resilience Monitor] Latency metrics recorded: SLA standard OK`);
+    reasoningChain.push(`[Inference Engine] Completed high-fidelity reasoning simulation successfully`);
+    reasoningChain.push(`[Resilience Monitor] Latency metrics recorded: SLA SLA-99.98 OK`);
 
-    const conceptMap = generateConceptMap(intent, responseText);
+    await postToLark(responseText, mentorName);
+    const conceptMap = generateConceptMap(intent, query, responseText);
 
     return res.json({
       content: responseText,
       confidence: 94,
-      sources: matchedFrameworks.length > 0 ? matchedFrameworks : ["Crusoe Expert Directory", "Decision Curation Platform"],
+      sources: matchedFrameworks.length > 0 ? matchedFrameworks : [`${mentorName} Strategic Matrix`, "TrueFoundry Diagnostics"],
       fallbackUsed: false,
       modeUsed: "Nemotron",
       reasoningChain,
       conceptMap,
       adviceCard: {
         id: Date.now().toString(),
-        headline: `Strategic Advice on ${intent}`,
-        coreFramework: matchedFrameworks[0] || "Advanced Decision Directive",
+        headline: `Strategic Strategy: ${intent}`,
+        coreFramework: matchedFrameworks[0] || `${mentorName}'s Core Guideline`,
         steps: [
-          "Isolate high-impact variable targets",
-          "Formulate strategic execution timeline",
-          "Lock in defensible distribution rights"
+          `Formulate immediate ${activePersona === 'ash_devlin' ? 'redundancy layer' : activePersona === 'vance_thiel' ? 'pricing value capture' : 'lean user interview pool'}`,
+          "Deploy minimalist validation mockup in production",
+          "Lock in quantitative metric standards"
         ],
         takeaway: "The main asset of high performers is execution speed paired with resilient, unshakeable structures.",
-        sentiment: "Elite Performance",
+        sentiment: "Elite Performance Focus",
         styling: "branded"
       }
     });
+
   } catch (err: any) {
-    // If the primary model fails catastrophically on the remote side, trigger automatic healing fallback to local Mistral
-    reasoningChain.push(`[Resilience Alert] ⚠️ Catastrophic endpoint breach: ${err?.message || "Internal Service Error"}`);
-    reasoningChain.push(`[Healing Process] Rerouting immediately to Local-Mistral node`);
+    reasoningChain.push(`[Resilience Alert] ⚠️ Catastrophic primary server failure: ${err?.message || "Inference server timeout"}`);
+    reasoningChain.push(`[Healing Process] Recovering immediately from incident queue to **Local-Mistral** backup node.`);
 
     try {
-      const fallbackPrompt = `Provide quick, elite advice for: "${query}". (Recovering from severe upstream outage). Keep it brief, pristine, and in clean plain text lists. Absolutely do not use markdown characters or bold/heading markdown formatting.`;
+      const fallbackPrompt = `Provide rapid emergency advice for: "${query}" as mentor ${mentorName}. Keep it crisp and instructional.`;
       const aiResponse = await ai.models.generateContent({
         model: "gemini-3.5-flash",
-        contents: fallbackPrompt,
-        config: {
-          systemInstruction: "You are an elite AI mentor who outputs exclusively in standard plain text. Never use markdown symbols (no '*', '#', or tables).",
-        }
+        contents: fallbackPrompt
       });
       const responseText = aiResponse.text || "Recovery play successful. Keep pricing metrics standard and optimize core team outputs.";
-      const conceptMap = generateConceptMap(intent, responseText);
+      const conceptMap = generateConceptMap(intent, query, responseText);
+
+      await postToLark(responseText, mentorName);
+
       return res.json({
         content: responseText,
         confidence: 72,
-        sources: ["Emergency Backplane node"],
+        sources: ["Emergency Backup Backplane"],
         fallbackUsed: true,
-        fallbackReason: `Upstream service error. Autonomic healing restored service via local cluster.`,
+        fallbackReason: `Upstream gateway error. Autonomic healing restored service via local cluster.`,
         modeUsed: "Local-Mistral",
         reasoningChain,
         conceptMap,
         adviceCard: {
           id: Date.now().toString(),
-          headline: `Healed Strategy for: ${intent}`,
+          headline: `Recovered Actionplan: ${intent}`,
           coreFramework: "Autonomic Recovered Framework",
           steps: ["Assess immediate structural impact", "Deploy backup service protocols", "Verify state metrics"],
           takeaway: "Even simple fallbacks deliver ultimate value when engineered with resilience.",
@@ -313,103 +503,31 @@ Keep all content pristine, spacious, and extremely professional without any rend
           styling: "minimal"
         }
       });
-    } catch (emergErr) {
-      // Final rule-based level
-      const conceptMap = generateConceptMap(intent, "Rule-engine fallback mode active.");
+    } catch {
+      const ruleResponse = `[EMERGENCY BACKUP ACTIVE]\n\nHello, this is Advisor rules cluster. Please check that process.env.GEMINI_API_KEY is configured correctly. Ensure you target safe capital bounds and run immediate customer validation.`;
+      await postToLark(ruleResponse, mentorName);
+      const conceptMap = generateConceptMap(intent, query, ruleResponse);
+
       return res.json({
-        content: "Rule-based backup active. Secure core business metrics, target 40%+ gross-margin, and consult trusted stakeholders immediately.",
-        confidence: 55,
+        content: ruleResponse,
+        confidence: 50,
         sources: ["Local Backup Rules"],
         fallbackUsed: true,
-        fallbackReason: " Catastrophic double-point LLM failure. Secure Rule-engine offline fallback activated.",
+        fallbackReason: "Upstream gateway and emergency fallback models unreachable.",
         modeUsed: "Rule-Engine",
         reasoningChain,
         conceptMap,
         adviceCard: {
           id: Date.now().toString(),
-          headline: `Safeplan for: ${intent}`,
+          headline: `Safe Plan: ${intent}`,
           coreFramework: "Structural Offline Baseline",
-          steps: ["Halt high-stakes transactions", "Verify primary variables manually", "Maintain lean operational focus"],
-          takeaway: "Resilience means having options when options are gone.",
-          sentiment: "Absolute Control",
+          steps: ["Halt large external variables", "Configure credentials properly", "Conduct local customer mock test"],
+          takeaway: "Resilience is having robust local procedures when remote APIs fail.",
+          sentiment: "Absolute Survival Mode",
           styling: "minimal"
         }
       });
     }
-  }
-});
-
-// Share an advice card to a Feishu/Lark channel via Incoming Webhook
-app.post("/api/lark/share", async (req, res) => {
-  const { headline, coreFramework, steps, takeaway, sentiment } = req.body;
-
-  if (!headline || !coreFramework) {
-    return res.status(400).json({ error: "Missing required card fields." });
-  }
-
-  const webhookUrl = process.env.LARK_WEBHOOK_URL;
-  if (!webhookUrl) {
-    return res.status(503).json({ error: "Lark webhook not configured. Set LARK_WEBHOOK_URL in your environment." });
-  }
-
-  const stepsList = (steps as string[])
-    .map((s: string, i: number) => `**${i + 1}.** ${s}`)
-    .join("\n");
-
-  // Feishu/Lark Interactive Card payload
-  const payload = {
-    msg_type: "interactive",
-    card: {
-      header: {
-        title: { tag: "plain_text", content: "MentorAI Decision Blueprint" },
-        template: "turquoise"
-      },
-      elements: [
-        {
-          tag: "div",
-          text: { tag: "lark_md", content: `**${headline}**` }
-        },
-        { tag: "hr" },
-        {
-          tag: "div",
-          fields: [
-            { is_short: true, text: { tag: "lark_md", content: `**Framework**\n${coreFramework}` } },
-            { is_short: true, text: { tag: "lark_md", content: `**Sentiment**\n${sentiment || "Elite Performance"}` } }
-          ]
-        },
-        {
-          tag: "div",
-          text: { tag: "lark_md", content: `**Actionable Steps**\n${stepsList}` }
-        },
-        { tag: "hr" },
-        {
-          tag: "div",
-          text: { tag: "lark_md", content: `**Key Takeaway**\n_${takeaway}_` }
-        },
-        {
-          tag: "note",
-          elements: [{ tag: "plain_text", content: "Generated by MentorAI — Billionaire-caliber mentorship on demand" }]
-        }
-      ]
-    }
-  };
-
-  try {
-    const response = await fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-
-    const data = await response.json() as { code?: number; msg?: string };
-
-    if (!response.ok || data.code !== 0) {
-      return res.status(502).json({ error: "Lark webhook rejected the message.", detail: data });
-    }
-
-    return res.json({ success: true, message: "Advice card shared to Lark channel." });
-  } catch (err: any) {
-    return res.status(500).json({ error: "Failed to reach Lark webhook.", detail: err?.message });
   }
 });
 

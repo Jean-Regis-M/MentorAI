@@ -1,8 +1,6 @@
 {
-  "name": "Remix: MentorAI",
+  "name": "MentorAI",
   "description": "Billionaire-caliber mentorship on-demand powered by a resilient, self-healing multi-agent architecture.",
   "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
