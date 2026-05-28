@@ -73,5 +73,5 @@ export interface AdviceCard {
   steps: string[];
   takeaway: string;
   sentiment: string;
-  styling: 'minimal' | 'detailed' | 'branded' | 'dark_minimalism' | 'vivid_executive';
+  styling: 'minimal' | 'detailed' | 'branded';
 }
