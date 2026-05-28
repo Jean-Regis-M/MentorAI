@@ -82,8 +82,7 @@ To maximize operational efficiency for power users:
 ## ⚙️ Repository Structure
 ```
 mentorai/
-├── README.md               # Beautiful hackathon pitch deck & startup tutorial
-├── VIDEO.md                # Multi-stage screen recording demo script
+├── README.md               # Beautiful hackathon pitch deck & startup tutorial              
 ├── metadata.json           # Application frame capabilities manifest
 ├── package.json            # Node and build configurations 
 ├── server.ts               # Full-stack backend: Express endpoints, multi-model gateway, vision parser
